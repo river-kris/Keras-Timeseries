@@ -1,0 +1,6 @@
+# Google Colab already provides all of these. Only needed for running locally.
+tensorflow>=2.16   # ships with Keras 3
+keras>=3.0
+numpy
+pandas
+matplotlib
