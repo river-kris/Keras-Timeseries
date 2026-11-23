@@ -1,0 +1,26 @@
+{
+  "run_name": "transformer_baseline",
+  "task": "classification",
+  "model": "transformer",
+  "test_accuracy": 0.5159090757369995,
+  "test_loss": 0.6930011510848999,
+  "best_val_accuracy": 0.4812760055065155,
+  "best_val_loss": 0.6933460235595703,
+  "best_epoch": 1,
+  "epochs_run": 11,
+  "params": 29258,
+  "train_time_min": 3.45,
+  "confusion_matrix": [
+    [
+      681,
+      0
+    ],
+    [
+      639,
+      0
+    ]
+  ],
+  "tensorflow": "2.21.0",
+  "keras": "3.13.2",
+  "gpu": "Tesla T4"
+}

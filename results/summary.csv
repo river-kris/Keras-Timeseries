@@ -1,0 +1,3 @@
+best_epoch,best_val_accuracy,best_val_loss,best_val_mae,best_val_mae_degC,best_val_mse,epochs_run,final_train_mse,gpu,keras,model,params,run_name,task,tensorflow,test_accuracy,test_loss,train_time_min
+10,,,0.2852545380592346,2.4631773983228746,0.1316552460193634,10,0.09985380619764328,Tesla T4,3.13.2,lstm,5153,lstm_baseline,forecasting,2.21.0,,,9.07
+1,0.4812760055065155,0.6933460235595703,,,,11,,Tesla T4,3.13.2,transformer,29258,transformer_baseline,classification,2.21.0,0.5159090757369995,0.6930011510848999,3.45

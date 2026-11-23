@@ -107,28 +107,50 @@ Every run is seeded (`seed = 42`) and its exact hyperparameters are stored in `r
 
 ## 6. Baseline reproduction (Task 1)
 
-| Model | Metric | Official example | Ours | Epochs | Train time | GPU |
+Both baselines were run unchanged (official hyperparameters, `seed = 42`) on Google Colab with a Tesla T4, TensorFlow 2.21.0 / Keras 3.13.2.
+
+| Model | Metric | Official example | Ours | Epochs (best / run) | Params | Train time |
 |---|---|---|---|---|---|---|
-| Transformer (FordA) | Test accuracy | ~0.95 | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
-| LSTM (Jena) | Val MSE (normalized) | _see example_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
+| Transformer (FordA) | Test accuracy | ~0.85 (val ~0.84, 110–120 epochs) | **0.516** | 1 / 11 (early stop) | 29,258 | 3.5 min |
+| LSTM (Jena) | Val MSE (normalized) | not stated | **0.1317** | 10 / 10 | 5,153 | 9.1 min |
+| LSTM (Jena) | Val MAE | — | 0.285 normalized ≈ **2.46 °C** | | | |
 
-**Observations**
-- Transformer: _TODO (early stopping epoch, train/val gap, training time)._
-- LSTM: _TODO (was val loss still falling at epoch 10? MAE in °C, prediction plots)._
+### Transformer: the baseline did not reproduce
 
-<!-- ![Transformer baseline loss](figures/transformer_baseline_loss.png) -->
-<!-- ![LSTM baseline loss](figures/lstm_baseline_loss.png) -->
+| | |
+|---|---|
+| ![Transformer loss](figures/transformer_baseline_loss.png) | ![Transformer accuracy](figures/transformer_baseline_accuracy.png) |
+
+- Training loss stayed at ≈ 0.693 (= ln 2, the loss of a random 2-class guess) and training accuracy stayed at 52%, the share of the majority class.
+- Validation loss rose slightly from epoch 1, so early stopping (patience 10) ended training after 11 epochs and restored the epoch-1 weights.
+- On the test set the model predicts **class 0 for every sample** (confusion matrix `[[681, 0], [639, 0]]`), giving 51.6% accuracy, which is chance level.
+- Our code is identical to the [official source](https://github.com/keras-team/keras-io/blob/master/examples/timeseries/timeseries_classification_transformer.py), so this is not a copying error.
+
+**Likely cause (our analysis; not verified with a separate diagnostic run):** FordA has a single input channel, so every tensor inside the encoder has feature size 1. `LayerNormalization` normalizes over the feature axis, and normalizing a single value always gives 0, so each LayerNorm outputs only its learned bias β, a constant. As a result, the attention branch and the feed-forward branch each add just a constant to the residual stream, and each encoder block computes `inputs + constant`. After `GlobalAveragePooling1D`, the classifier head sees only the mean of the series plus a constant. FordA series are z-normalized (mean ≈ 0), so that input carries no class information, and the model can only learn the class prior. That is exactly what we observe.
+
+### LSTM: reproduced
+
+| | |
+|---|---|
+| ![LSTM loss](figures/lstm_baseline_loss.png) | ![LSTM prediction](figures/lstm_baseline_prediction_1.png) |
+
+- Training ran all 10 epochs. The best validation loss came at the **last** epoch (0.1317), and validation loss was still falling (0.1390 → 0.1362 → 0.1317 over epochs 8–10), so the baseline is probably **under-trained**.
+- Training MSE (0.0999) is below validation MSE (0.1317). Part of that gap is expected because validation covers different years and seasons than training.
+- Validation MAE of 0.285 (normalized) is about **2.5 °C** average error when predicting temperature 12 hours ahead.
+- Validation loss was noisy in the first epochs (it rose during epochs 3–4) before improving steadily.
+- Note that the example has no separate test set; all LSTM numbers are on the validation split.
 
 ## 7. Improvements (Task 2)
-**Chosen model:** _TODO (LSTM or Transformer) — why._
+**Chosen model: LSTM (Jena Climate forecasting).** The LSTM baseline reproduced correctly, so changes to it can be compared against a working reference. Each run also takes only about 5–15 minutes on a T4. The Transformer baseline did not learn at all (see Section 6), so comparing hyperparameters on it would just compare one chance-level model with another.
 
-Each experiment changes **one** setting from the baseline; everything else (seed, data split, epochs) stays fixed.
+Each experiment changes **one** setting from the baseline. Everything else stays fixed: seed 42, the same data split, the same 7 features, 10 epochs, and early stopping with patience 5. All runs therefore get the same training budget, so a model that learns faster is rewarded. This is worth remembering because the baseline was still improving at epoch 10.
 
-| # | Run | Change | Hypothesis | Result vs. baseline |
-|---|---|---|---|---|
-| 1 | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
-| 2 | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
-| 3 | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
+| # | Run | Change | Hypothesis | Val MSE | Val MAE (°C) | Δ MSE vs. baseline | Params | Time |
+|---|---|---|---|---|---|---|---|---|
+| 0 | `lstm_baseline` | — | — | 0.1317 | 2.46 | — | 5,153 | 9.1 min |
+| 1 | `lstm_units64` | `lstm_units: 32 → 64` | More capacity per step should fit temperature dynamics better | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
+| 2 | `lstm_stacked2` | `num_lstm_layers: 1 → 2` | A second layer can learn longer-range / more abstract patterns | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
+| 3 | `lstm_past360` | `past: 720 → 360` (5 → 2.5 days of input) | Recent hours matter most for a 12 h forecast, so a shorter window may lose little and train faster | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
 
 ## 8. Benchmark summary (Task 3)
 _Paste the output of `python scripts/collect_results.py` here._
