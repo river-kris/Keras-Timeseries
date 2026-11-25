@@ -1,0 +1,16 @@
+{
+  "run_name": "lstm_past360",
+  "task": "forecasting",
+  "model": "lstm",
+  "best_val_mse": 0.12916958332061768,
+  "best_val_mae": 0.28120025992393494,
+  "best_val_mae_degC": 2.428168643204276,
+  "best_epoch": 10,
+  "epochs_run": 10,
+  "final_train_mse": 0.10100091993808746,
+  "params": 5153,
+  "train_time_min": 9.31,
+  "tensorflow": "2.21.0",
+  "keras": "3.13.2",
+  "gpu": "Tesla T4"
+}

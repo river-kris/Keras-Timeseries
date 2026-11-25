@@ -1,0 +1,16 @@
+{
+  "run_name": "lstm_units64",
+  "task": "forecasting",
+  "model": "lstm",
+  "best_val_mse": 0.15226386487483978,
+  "best_val_mae": 0.30491527915000916,
+  "best_val_mae_degC": 2.6329482051908704,
+  "best_epoch": 1,
+  "epochs_run": 6,
+  "final_train_mse": 0.1052890494465828,
+  "params": 18497,
+  "train_time_min": 5.77,
+  "tensorflow": "2.21.0",
+  "keras": "3.13.2",
+  "gpu": "Tesla T4"
+}

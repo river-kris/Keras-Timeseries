@@ -9,7 +9,7 @@ This project reproduces, organizes, and extends two official Keras time-series e
 | 1 | Classification | FordA (engine sensor) | Transformer encoder | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/river-kris/Keras-Timeseries/blob/main/notebooks/01_transformer_classification.ipynb) |
 | 2 | Forecasting | Jena Climate (weather) | LSTM | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/river-kris/Keras-Timeseries/blob/main/notebooks/02_lstm_weather_forecasting.ipynb) |
 
-> **TL;DR of findings:** _TODO: 2–3 sentences once results are in._
+> **TL;DR of findings:** The LSTM forecasting baseline reproduced: it predicts temperature 12 h ahead with about 2.46 °C validation MAE. Of three controlled changes, **stacking a second LSTM layer gave the best result (−5.7 % val MSE, 2.39 °C MAE)**, while doubling the hidden size made results worse (+15.6 %). The official Transformer classifier did **not** reproduce (51.6 % test accuracy vs. ~85 % reported). We trace this to `LayerNormalization` being applied to a single-channel signal, which most likely makes every encoder block compute just `inputs + constant`.
 
 ---
 
@@ -36,10 +36,23 @@ This project reproduces, organizes, and extends two official Keras time-series e
 ## 2. Datasets
 
 ### FordA (classification)
-- _TODO: source (UCR archive), what one sample is (500 time steps of engine noise), 2 classes (fault / no fault), train/test sizes, class balance._
+- **Source:** UCR Time Series Classification Archive (loaded from the `hfawaz/cd-diagram` GitHub mirror, as in the official example).
+- **Sample:** one engine-noise measurement of **500 time steps** from a single sensor, so the input shape is `(500, 1)`.
+- **Labels:** 2 classes (whether a certain engine symptom is present), stored as −1 / 1 and mapped to 0 / 1.
+- **Splits:** 3,601 training series, of which 20 % are held out for validation (`validation_split=0.2`), and 1,320 test series. The test set is roughly balanced: 681 class 0 and 639 class 1.
+- **Preprocessing:** none beyond reshaping and label mapping. The series in the archive are already z-normalized.
+
+![FordA samples](figures/transformer_baseline_data_samples.png)
 
 ### Jena Climate 2009–2016 (forecasting)
-- _TODO: 14 features recorded every 10 minutes; 7 features used; target = temperature 12 h ahead; train/val split 71.5% / 28.5%; normalization._
+- **Source:** weather station of the Max Planck Institute for Biogeochemistry in Jena, Germany. It has **14 features** (pressure, temperature, humidity, wind, …) recorded **every 10 minutes** from 2009 to 2016, about 420,000 rows in total.
+- **Features used (7):** pressure, temperature, saturation vapor pressure, vapor pressure deficit, specific humidity, air density, and wind speed. These are the features the official example selects after looking at the correlation heatmap below.
+- **Target:** temperature (°C) **72 records = 12 hours** after the end of the input window.
+- **Input window:** the past 720 records (5 days), sampled every 6th record (hourly), giving 120 time steps.
+- **Split:** chronological, with the first 71.5 % for training and the remaining 28.5 % for validation. There is no separate test set.
+- **Normalization:** each feature is standardized with the mean and standard deviation of the **training** portion only, so no information leaks from the validation data. MAE is converted back to °C by multiplying by the training standard deviation of temperature.
+
+![Jena feature correlation](figures/lstm_baseline_feature_correlation.png)
 
 ## 3. Models
 
@@ -60,7 +73,12 @@ This project reproduces, organizes, and extends two official Keras time-series e
 | Loss / metric | MSE / MAE |
 | Training | Adam lr = 1e-3, batch 256, 10 epochs, early stopping (patience 5), best-checkpoint |
 
-_TODO: one paragraph on how the two models differ in the way they process the sequence._
+### How the two models process a sequence
+The **LSTM** reads the sequence one step at a time, in order. At each step it updates a hidden state (here a vector of 32 numbers), and gates decide what to keep, forget, or add. The final hidden state summarizes the whole window and goes into a single Dense layer that outputs the forecast. Information from early time steps has to survive many updates to reach the output, so time order is built into the model.
+
+The **Transformer** encoder looks at all 500 time steps at once. Self-attention lets every step compare itself with every other step and take a weighted mix of them, so distant points interact directly. Because nothing is processed in order, the model has no built-in sense of time order (this example adds no positional encoding). Global average pooling then turns the per-step outputs into one vector for classification.
+
+The tasks also differ. **Classification** maps a whole sequence to one label (fault / no fault), scored with cross-entropy and accuracy. **Forecasting** maps a window of the past to a future value, scored with MSE / MAE.
 
 ## 4. Repository structure
 ```
@@ -137,7 +155,7 @@ Both baselines were run unchanged (official hyperparameters, `seed = 42`) on Goo
 - Training ran all 10 epochs. The best validation loss came at the **last** epoch (0.1317), and validation loss was still falling (0.1390 → 0.1362 → 0.1317 over epochs 8–10), so the baseline is probably **under-trained**.
 - Training MSE (0.0999) is below validation MSE (0.1317). Part of that gap is expected because validation covers different years and seasons than training.
 - Validation MAE of 0.285 (normalized) is about **2.5 °C** average error when predicting temperature 12 hours ahead.
-- Validation loss was noisy in the first epochs (it rose during epochs 3–4) before improving steadily.
+- Validation loss was noisy in the first epochs (it rose during epochs 3–5) before improving steadily.
 - Note that the example has no separate test set; all LSTM numbers are on the validation split.
 
 ## 7. Improvements (Task 2)
@@ -148,28 +166,65 @@ Each experiment changes **one** setting from the baseline. Everything else stays
 | # | Run | Change | Hypothesis | Val MSE | Val MAE (°C) | Δ MSE vs. baseline | Params | Time |
 |---|---|---|---|---|---|---|---|---|
 | 0 | `lstm_baseline` | — | — | 0.1317 | 2.46 | — | 5,153 | 9.1 min |
-| 1 | `lstm_units64` | `lstm_units: 32 → 64` | More capacity per step should fit temperature dynamics better | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
-| 2 | `lstm_stacked2` | `num_lstm_layers: 1 → 2` | A second layer can learn longer-range / more abstract patterns | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
-| 3 | `lstm_past360` | `past: 720 → 360` (5 → 2.5 days of input) | Recent hours matter most for a 12 h forecast, so a shorter window may lose little and train faster | _TODO_ | _TODO_ | _TODO_ | _TODO_ | _TODO_ |
+| 1 | `lstm_units64` | `lstm_units: 32 → 64` | More capacity per step should fit temperature dynamics better | 0.1523 | 2.63 | **+15.6 % (worse)** | 18,497 | 5.8 min (early-stopped after 6 epochs) |
+| 2 | `lstm_stacked2` | `num_lstm_layers: 1 → 2` | A second layer can learn longer-range / more abstract patterns | 0.1242 | 2.39 | **−5.7 % (better)** | 13,473 | 10.7 min |
+| 3 | `lstm_past360` | `past: 720 → 360` (5 → 2.5 days of input) | Recent hours matter most for a 12 h forecast, so a shorter window may lose little and train faster | 0.1292 | 2.43 | **−1.9 % (slightly better)** | 5,153 | 9.3 min (not faster) |
 
 ## 8. Benchmark summary (Task 3)
-_Paste the output of `python scripts/collect_results.py` here._
+All runs: Google Colab, Tesla T4, TensorFlow 2.21.0 / Keras 3.13.2, `seed = 42`. These tables are generated by `python scripts/collect_results.py`; the raw numbers are in `results/summary.csv`.
 
-**Key findings**
-- _TODO_
-- _TODO_
-- _TODO_
+### Transformer classification (FordA)
 
-**Limitations**
-- _TODO (single seed, short training for LSTM, no separate LSTM test set, Colab GPU variability, ...)._
+| Run | Test acc | Test loss | Best val acc | Best epoch | Epochs run | Params | Train time (min) |
+|---|---|---|---|---|---|---|---|
+| transformer_baseline | 0.5159 | 0.6930 | 0.4813 | 1 | 11 | 29,258 | 3.45 |
+
+### LSTM forecasting (Jena Climate), ranked by validation MSE
+
+| Rank | Run | Change vs. baseline | Val MSE | Val MAE (°C) | Δ MSE | Best epoch | Epochs run | Params | Train time (min) |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | lstm_stacked2 | 2 LSTM layers | **0.1242** | **2.39** | −5.7 % | 10 | 10 | 13,473 | 10.70 |
+| 2 | lstm_past360 | 360-record input window | 0.1292 | 2.43 | −1.9 % | 10 | 10 | 5,153 | 9.31 |
+| 3 | lstm_baseline | — | 0.1317 | 2.46 | — | 10 | 10 | 5,153 | 9.07 |
+| 4 | lstm_units64 | 64 hidden units | 0.1523 | 2.63 | +15.6 % | 1 | 6 | 18,497 | 5.77 |
+
+| Baseline | 64 units | 2 stacked layers | 360-record window |
+|---|---|---|---|
+| ![](figures/lstm_baseline_loss.png) | ![](figures/lstm_units64_loss.png) | ![](figures/lstm_stacked2_loss.png) | ![](figures/lstm_past360_loss.png) |
+
+### Key findings
+1. **Depth helped; width did not.** Both changes added parameters, but in opposite directions. Going from 32 to 64 hidden units (3.6× the parameters) made validation MSE 15.6 % worse. Stacking a second 32-unit layer (2.6× the parameters) made it 5.7 % better. How capacity is added mattered more than how much.
+2. **The wider model fits the training data faster but generalizes worse.** At every epoch, `lstm_units64` had lower training loss than the baseline but higher validation loss. Its best validation loss came at epoch 1; validation loss then rose for several epochs, so early stopping (patience 5) ended the run after epoch 6 while validation loss was falling again. Part of its poor result therefore comes from early stopping cutting it off, not only from the model itself.
+3. **The stacked model trained the most smoothly.** Its validation loss fell in almost every epoch, without the rise in epochs 3–5 that the baseline and the 64-unit model showed. Its final training MSE was almost the same as the baseline's (0.0996 vs. 0.0999), so the improvement shows up on unseen years rather than as a better fit to the training data.
+4. **Five days of history is more than a 12-hour forecast needs.** Halving the input window to 2.5 days did not hurt and was slightly better (−1.9 %). However, our second hypothesis was wrong: training was **not** faster (9.3 vs. 9.1 min), even though each input sequence is half as long. The number of training windows barely changes, and the time is probably dominated by the data pipeline rather than the LSTM itself.
+5. **Every completed run was still improving at epoch 10.** The baseline, the stacked model, and the short-window model all reached their best validation loss at the final epoch. The 10-epoch budget is limiting, so all LSTM results here are under-trained.
+6. **A baseline that does not reproduce is still a result.** The official Transformer code stayed at chance level in our environment. Section 6 gives a likely structural cause: LayerNorm applied to a feature dimension of 1.
+
+### Limitations
+- **Single seed.** Each configuration was trained once. The −1.9 % difference for the short window is small enough that run-to-run variation could explain it. The −5.7 % and +15.6 % differences are more convincing, but repeat runs with several seeds would be needed to be sure.
+- **Short, fixed training budget.** With 10 epochs, the comparison favors models that learn quickly. A longer run might change the ranking, especially for the 64-unit model that was early-stopped.
+- **Validation only.** The LSTM example has no separate test set, and the same validation split was used both for checkpoint selection and for reporting, so the reported numbers are slightly optimistic.
+- **No naive baseline.** We did not compare against a trivial forecast such as "temperature in 12 h = temperature now", so we cannot say how much of the LSTM's skill comes from learning versus simple persistence.
+- **Transformer cause not verified.** The LayerNorm explanation is based on analysis of the code and on behavior that matches it, not on a separate diagnostic experiment or a fixed model.
+- **Hardware variability.** Training times are from a shared Colab T4 and may vary between sessions.
 
 ## 9. Questions (Task 4)
 
+<!-- DRAFT written from the results. Rewrite in your own words and add your own experience before submitting. -->
+
 **Which model did you find easier to understand and why?**
-_TODO_
+
+The **LSTM** was easier to understand. Its structure matches how we think about a time series: it reads the past one hour at a time, keeps a running memory, and outputs one number at the end. The whole model is LSTM(32) → Dense(1), about 5,000 parameters, and you can follow the shape of the data through every step: `(batch, 120, 7)` → `(batch, 32)` → `(batch, 1)`. The training curves were also easy to interpret, since lower MSE simply means a smaller temperature error that we could convert back to degrees Celsius.
+
+The Transformer has more moving parts: multi-head attention, head size versus number of heads, residual connections, LayerNorm, a feed-forward block made of 1×1 convolutions, and global pooling. Attention has no built-in sense of time order, so it is less obvious how the model uses the sequence. The failed reproduction made this concrete. We could not see the cause from the training curves, which were simply flat. Finding it required tracing the tensor shapes through every layer, which showed that LayerNorm over a single feature removes all of the signal. That made us understand the architecture better, but it also showed how easy it is to build a Transformer that looks correct and does not work.
 
 **What improvement did you try, and what did you learn from it?**
-_TODO_
+
+We made three single-change experiments on the LSTM: doubling the hidden size (32 → 64), stacking two LSTM layers, and halving the input window (5 → 2.5 days).
+
+- **Bigger is not automatically better.** Doubling the width more than tripled the parameters and made validation error 15.6 % worse. The model fit the training years faster but did worse on the validation years, and its noisy validation loss caused early stopping to end training after six epochs. Stacking a second layer added fewer parameters and was our best result (−5.7 % MSE, 2.39 °C MAE), with the smoothest validation curve. The way capacity is added matters.
+- **Check every part of a hypothesis.** We expected the shorter window to lose a little accuracy but train faster. The opposite happened: accuracy was slightly better, and training time did not change. Training time was dominated by the number of windows and the data pipeline, not by sequence length.
+- **Change one thing at a time and keep everything else fixed.** Fixing the seed, data split, and epoch budget made the runs comparable. Recording the full training history, not just the final number, let us explain *why* a run was better or worse, for example the early-stopping effect on the 64-unit model. We also learned the limits of this setup: with one seed and 10 epochs, small differences such as −1.9 % should not be over-interpreted.
 
 ## 10. Team contributions
 | Member | Contributions |

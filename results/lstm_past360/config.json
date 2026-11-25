@@ -1,0 +1,23 @@
+{
+  "seed": 42,
+  "split_fraction": 0.715,
+  "step": 6,
+  "past": 360,
+  "future": 72,
+  "feature_indices": [
+    0,
+    1,
+    5,
+    7,
+    8,
+    10,
+    11
+  ],
+  "lstm_units": 32,
+  "num_lstm_layers": 1,
+  "dropout": 0.0,
+  "learning_rate": 0.001,
+  "batch_size": 256,
+  "epochs": 10,
+  "early_stopping_patience": 5
+}
