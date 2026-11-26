@@ -210,13 +210,11 @@ All runs: Google Colab, Tesla T4, TensorFlow 2.21.0 / Keras 3.13.2, `seed = 42`.
 
 ## 9. Questions (Task 4)
 
-<!-- DRAFT written from the results. Rewrite in your own words and add your own experience before submitting. -->
-
 **Which model did you find easier to understand and why?**
 
-The **LSTM** was easier to understand. Its structure matches how we think about a time series: it reads the past one hour at a time, keeps a running memory, and outputs one number at the end. The whole model is LSTM(32) → Dense(1), about 5,000 parameters, and you can follow the shape of the data through every step: `(batch, 120, 7)` → `(batch, 32)` → `(batch, 1)`. The training curves were also easy to interpret, since lower MSE simply means a smaller temperature error that we could convert back to degrees Celsius.
+I find the LSTM easier to understand. Its structure matches that of a time series, by keeping the past one hour at a time, keeping a running memory, and outputting one number at the end. The whole model is LSTM(32) → Dense(1), about 5,000 parameters, and you can follow the shape of the data through every step: `(batch, 120, 7)` → `(batch, 32)` → `(batch, 1)`. The training curves were also easy to interpret, since lower MSE simply means a smaller temperature error that we could convert back to degrees Celsius.
 
-The Transformer has more moving parts: multi-head attention, head size versus number of heads, residual connections, LayerNorm, a feed-forward block made of 1×1 convolutions, and global pooling. Attention has no built-in sense of time order, so it is less obvious how the model uses the sequence. The failed reproduction made this concrete. We could not see the cause from the training curves, which were simply flat. Finding it required tracing the tensor shapes through every layer, which showed that LayerNorm over a single feature removes all of the signal. That made us understand the architecture better, but it also showed how easy it is to build a Transformer that looks correct and does not work.
+The Transformer has more parts: multi-head attention, head size versus number of heads, residual connections, LayerNorm, a feed-forward block made of 1×1 convolutions, and global pooling. Attention has no built-in sense of time order, so it is less obvious how the model uses the sequence. The failed reproduction is an example. We could not see the cause from the training curves, which were simply flat. Finding it required tracing the tensor shapes through every layer, which showed that LayerNorm over a single feature removes all of the signal. That made us understand the architecture better, but it also showed how easy it is to build a Transformer that looks correct and does not work.
 
 **What improvement did you try, and what did you learn from it?**
 
@@ -228,8 +226,8 @@ We made three single-change experiments on the LSTM: doubling the hidden size (3
 
 ## 10. Team contributions
 | Member | Contributions |
-|---|---|
-| _TODO_ | _TODO_ |
+| Student ID: 29747219 | everything |
+| Claude Opus 5.5 | code implementation and assistance |
 
 ## 11. References
 - T. Ntakouris, *Timeseries classification with a Transformer model*, Keras examples. https://keras.io/examples/timeseries/timeseries_classification_transformer/
